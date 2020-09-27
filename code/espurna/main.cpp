@@ -152,6 +152,12 @@ void setup() {
     // Show welcome message and system configuration
     info(true);
 
+    // powercut, and 30 nodes connecting simoultaneously to same AP is not a good idea
+    // connect, or any other kind of regular event earch X seconds (data publishing, mdns)
+    // side effect with SYSTEM_CHECK_TIME???? Increase SYSTEM_CHECK_TIME to 120000?
+    uint rndDelay = secureRandom(0, getSetting("bootDelayMax",60));
+    delay(rndDelay*1000);
+
     wifiSetup();
     #if OTA_ARDUINOOTA_SUPPORT
         arduinoOtaSetup();

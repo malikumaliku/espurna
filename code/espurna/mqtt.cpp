@@ -70,6 +70,7 @@ Updated secure client support by Niek van der Maas < mail at niekvandermaas dot 
 #endif // MQTT_LIBRARY == MQTT_ASYNCMQTTCLIENT
 
 
+unsigned long _mqtt_last_connecting = 0;
 unsigned long _mqtt_last_connection = 0;
 AsyncClientState _mqtt_state = AsyncClientState::Disconnected;
 bool _mqtt_skip_messages = false;
@@ -981,6 +982,8 @@ void _mqttConnect() {
     // Do not connect if disabled
     if (!_mqtt_enabled) return;
 
+    if ((_mqtt_state == AsyncClientState::Connecting) && (millis() - _mqtt_last_connecting > _mqtt_reconnect_delay)) {_mqtt_state = AsyncClientState::Disconnected;};
+
     // Do not connect if already connected or still trying to connect
     if (_mqtt.connected() || (_mqtt_state != AsyncClientState::Disconnected)) return;
 
@@ -1006,6 +1009,7 @@ void _mqttConnect() {
     DEBUG_MSG_P(PSTR("[MQTT] Will topic: %s\n"), _mqtt_will.c_str());
 
     _mqtt_state = AsyncClientState::Connecting;
+    _mqtt_last_connecting = millis();
 
     _mqtt_skip_messages = (_mqtt_skip_time > 0);
 

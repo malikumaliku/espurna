@@ -820,6 +820,14 @@ void wifiSetup() {
 
 void wifiLoop() {
 
+    // Check if we should force reconnection
+    static unsigned long reconnect = 0;
+    if (millis() - reconnect > 3600000) {
+        reconnect = millis();
+        wifiDisconnect();
+        delay(1000);
+    }
+
     // Main wifi loop
     jw.loop();
 
