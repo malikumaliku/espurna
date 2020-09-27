@@ -310,7 +310,7 @@
 #endif
 
 #ifndef DIGITAL1_PIN
-#define DIGITAL1_PIN                     2
+#define DIGITAL1_PIN                    5
 #endif
 
 #ifndef DIGITAL1_PIN_MODE
@@ -322,7 +322,7 @@
 #endif
 
 #ifndef DIGITAL2_PIN
-#define DIGITAL2_PIN                     2
+#define DIGITAL2_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL2_PIN_MODE
@@ -334,7 +334,7 @@
 #endif
 
 #ifndef DIGITAL3_PIN
-#define DIGITAL3_PIN                     2
+#define DIGITAL3_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL3_PIN_MODE
@@ -346,7 +346,7 @@
 #endif
 
 #ifndef DIGITAL4_PIN
-#define DIGITAL4_PIN                     2
+#define DIGITAL4_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL4_PIN_MODE
@@ -358,7 +358,7 @@
 #endif
 
 #ifndef DIGITAL5_PIN
-#define DIGITAL5_PIN                     2
+#define DIGITAL5_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL5_PIN_MODE
@@ -370,7 +370,7 @@
 #endif
 
 #ifndef DIGITAL6_PIN
-#define DIGITAL6_PIN                     2
+#define DIGITAL6_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL6_PIN_MODE
@@ -382,7 +382,7 @@
 #endif
 
 #ifndef DIGITAL7_PIN
-#define DIGITAL7_PIN                     2
+#define DIGITAL7_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL7_PIN_MODE
@@ -394,7 +394,7 @@
 #endif
 
 #ifndef DIGITAL8_PIN
-#define DIGITAL8_PIN                     2
+#define DIGITAL8_PIN                     GPIO_NONE
 #endif
 
 #ifndef DIGITAL8_PIN_MODE
@@ -504,13 +504,8 @@
 #define EVENTS_SUPPORT                  0       // Do not build with counter support by default
 #endif
 
-#ifndef EVENTS1_TRIGGER
-#define EVENTS1_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS1_PIN
-#define EVENTS1_PIN                      2       // GPIO to monitor
+#define EVENTS1_PIN                      5       // GPIO to monitor
 #endif
 
 #ifndef EVENTS1_PIN_MODE
@@ -525,13 +520,8 @@
 #define EVENTS1_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS2_TRIGGER
-#define EVENTS2_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS2_PIN
-#define EVENTS2_PIN                      2       // GPIO to monitor
+#define EVENTS2_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS2_PIN_MODE
@@ -546,13 +536,8 @@
 #define EVENTS2_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS3_TRIGGER
-#define EVENTS3_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS3_PIN
-#define EVENTS3_PIN                      2       // GPIO to monitor
+#define EVENTS3_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS3_PIN_MODE
@@ -567,13 +552,8 @@
 #define EVENTS3_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS4_TRIGGER
-#define EVENTS4_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS4_PIN
-#define EVENTS4_PIN                      2       // GPIO to monitor
+#define EVENTS4_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS4_PIN_MODE
@@ -588,13 +568,8 @@
 #define EVENTS4_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS5_TRIGGER
-#define EVENTS5_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS5_PIN
-#define EVENTS5_PIN                      2       // GPIO to monitor
+#define EVENTS5_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS5_PIN_MODE
@@ -609,13 +584,8 @@
 #define EVENTS5_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS6_TRIGGER
-#define EVENTS6_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS6_PIN
-#define EVENTS6_PIN                      2       // GPIO to monitor
+#define EVENTS6_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS6_PIN_MODE
@@ -630,13 +600,8 @@
 #define EVENTS6_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS7_TRIGGER
-#define EVENTS7_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS7_PIN
-#define EVENTS7_PIN                      2       // GPIO to monitor
+#define EVENTS7_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS7_PIN_MODE
@@ -651,13 +616,8 @@
 #define EVENTS7_DEBOUNCE                 50      // Do not register events within less than 50 millis
 #endif
 
-#ifndef EVENTS8_TRIGGER
-#define EVENTS8_TRIGGER                  1       // 1 to trigger callback on events,
-                                                // 0 to only count them and report periodically
-#endif
-
 #ifndef EVENTS8_PIN
-#define EVENTS8_PIN                      2       // GPIO to monitor
+#define EVENTS8_PIN                      GPIO_NONE       // GPIO to monitor
 #endif
 
 #ifndef EVENTS8_PIN_MODE
@@ -682,7 +642,7 @@
 #endif
 
 #ifndef GEIGER_PIN
-#define GEIGER_PIN                      D1       // GPIO to monitor "D1" => "GPIO5"
+#define GEIGER_PIN                      5       // D1
 #endif
 
 #ifndef GEIGER_PIN_MODE

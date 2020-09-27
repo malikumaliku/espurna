@@ -397,6 +397,56 @@
 #define BUTTON8_MQTT_RETAIN    BUTTON_MQTT_RETAIN
 #endif
 
+#ifndef BUTTON1_PROVIDER
+#define BUTTON1_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON2_PROVIDER
+#define BUTTON2_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON3_PROVIDER
+#define BUTTON3_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON4_PROVIDER
+#define BUTTON4_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON5_PROVIDER
+#define BUTTON5_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON6_PROVIDER
+#define BUTTON6_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON7_PROVIDER
+#define BUTTON7_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+#ifndef BUTTON8_PROVIDER
+#define BUTTON8_PROVIDER    BUTTON_PROVIDER_GENERIC
+#endif
+
+#ifndef BUTTON1_ANALOG_LEVEL
+#define BUTTON1_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON2_ANALOG_LEVEL
+#define BUTTON2_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON3_ANALOG_LEVEL
+#define BUTTON3_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON4_ANALOG_LEVEL
+#define BUTTON4_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON5_ANALOG_LEVEL
+#define BUTTON5_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON6_ANALOG_LEVEL
+#define BUTTON6_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON7_ANALOG_LEVEL
+#define BUTTON7_ANALOG_LEVEL     0
+#endif
+#ifndef BUTTON8_ANALOG_LEVEL
+#define BUTTON8_ANALOG_LEVEL     0
+#endif
+
 // -----------------------------------------------------------------------------
 // Encoders
 // -----------------------------------------------------------------------------
@@ -768,64 +818,6 @@
 #endif
 #ifndef LED8_PIN_INVERSE
 #define LED8_PIN_INVERSE            0
-#endif
-
-// -----------------------------------------------------------------------------
-// Digital Inputs
-// -----------------------------------------------------------------------------
-
-#ifndef DIGITAL1_PIN
-#define DIGITAL1_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL2_PIN
-#define DIGITAL2_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL3_PIN
-#define DIGITAL3_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL4_PIN
-#define DIGITAL4_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL5_PIN
-#define DIGITAL5_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL6_PIN
-#define DIGITAL6_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL7_PIN
-#define DIGITAL7_PIN         GPIO_NONE
-#endif
-#ifndef DIGITAL8_PIN
-#define DIGITAL8_PIN         GPIO_NONE
-#endif
-
-// -----------------------------------------------------------------------------
-// Events
-// -----------------------------------------------------------------------------
-
-#ifndef EVENTS1_PIN
-#define EVENTS1_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS2_PIN
-#define EVENTS2_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS3_PIN
-#define EVENTS3_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS4_PIN
-#define EVENTS4_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS5_PIN
-#define EVENTS5_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS6_PIN
-#define EVENTS6_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS7_PIN
-#define EVENTS7_PIN         GPIO_NONE
-#endif
-#ifndef EVENTS8_PIN
-#define EVENTS8_PIN         GPIO_NONE
 #endif
 
 // -----------------------------------------------------------------------------

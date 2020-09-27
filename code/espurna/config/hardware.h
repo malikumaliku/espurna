@@ -566,7 +566,7 @@
     #define BUTTON2_RELAY       2
     #define BUTTON3_RELAY       1
 
-    #define BUTTON_EVENTS_SOURCE    BUTTON_EVENTS_SOURCE_ITEAD_SONOFF_DUAL
+    #define BUTTON_PROVIDER_ITEAD_SONOFF_DUAL_SUPPORT    1
 
     // LEDs
     #define LED1_PIN            13
@@ -3422,6 +3422,49 @@
     #define DEBUG_SERIAL_SUPPORT 0
 
 // ----------------------------------------------------------------------------------------
+//  Power socket 16A similar to BLITZWOLF_BWSHPX but button pin differs 
+//  IMPORTANT, This template is for hardware version SP111_A_Wifi_Ver1.1 (as printed on the PCB)
+//  hhttps://www.amazon.de/-/en/Smallest-Consumption-Measuring-Function-Compatible/dp/B07PSMF47W
+// ----------------------------------------------------------------------------------------    
+
+#elif defined(GOSUND_SP111)
+
+    // Info
+    #define MANUFACTURER                "GOSUND"
+    #define DEVICE                      "SP111"
+
+   // Buttons
+    #define BUTTON1_PIN                 13
+    #define BUTTON1_CONFIG              BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH
+    #define BUTTON1_RELAY               1
+
+    // Relays
+    #define RELAY1_PIN                  15
+    #define RELAY1_TYPE                 RELAY_TYPE_NORMAL
+
+    // LEDs
+    #define LED1_PIN                    2
+    #define LED1_PIN_INVERSE            1
+    #define LED2_PIN                    0
+    #define LED2_PIN_INVERSE            1
+    #define LED2_MODE                   LED_MODE_FINDME
+    #define LED2_RELAY                  1
+
+    // HJL01 / BL0937
+    #ifndef HLW8012_SUPPORT
+    #define HLW8012_SUPPORT             1
+    #endif
+    #define HLW8012_SEL_PIN             12
+    #define HLW8012_CF1_PIN             4
+    #define HLW8012_CF_PIN              5
+
+    #define HLW8012_SEL_CURRENT         LOW
+    #define HLW8012_CURRENT_RATIO       25740
+    #define HLW8012_VOLTAGE_RATIO       313400
+    #define HLW8012_POWER_RATIO         3414290
+    #define HLW8012_INTERRUPT_ON        FALLING
+
+// ----------------------------------------------------------------------------------------
 //  Homecube 16A is similar but some pins differ and it also has RGB LEDs
 //  https://www.amazon.de/gp/product/B07D7RVF56/ref=oh_aui_detailpage_o00_s01?ie=UTF8&psc=1
 // ----------------------------------------------------------------------------------------
@@ -4266,7 +4309,7 @@
     #define BUTTON3_RELAY           2
     #define BUTTON4_RELAY           1
 
-    #define BUTTON_EVENTS_SOURCE    BUTTON_EVENTS_SOURCE_FOXEL_LIGHTFOX_DUAL
+    #define BUTTON_PROVIDER_FOXEL_LIGHTFOX_DUAL_SUPPORT    1
 
 // -----------------------------------------------------------------------------
 // Teckin SP20
@@ -4869,15 +4912,19 @@
     #define RELAY4_PIN              7
 
     // Buttons
+    #define BUTTON1_PROVIDER        BUTTON_PROVIDER_MCP23S08
     #define BUTTON1_CONFIG          BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH
     #define BUTTON1_PIN             0
 
+    #define BUTTON2_PROVIDER        BUTTON_PROVIDER_MCP23S08
     #define BUTTON2_CONFIG          BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH
     #define BUTTON2_PIN             1
 
+    #define BUTTON3_PROVIDER        BUTTON_PROVIDER_MCP23S08
     #define BUTTON3_CONFIG          BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH
     #define BUTTON3_PIN             2
 
+    #define BUTTON4_PROVIDER        BUTTON_PROVIDER_MCP23S08
     #define BUTTON4_CONFIG          BUTTON_PUSHBUTTON | BUTTON_DEFAULT_HIGH
     #define BUTTON4_PIN             3
 
@@ -4885,8 +4932,6 @@
     #define BUTTON2_RELAY           2
     #define BUTTON3_RELAY           3
     #define BUTTON4_RELAY           4
-
-    #define BUTTON_EVENTS_SOURCE    BUTTON_EVENTS_SOURCE_MCP23S08
 
     // LEDs
     #define LED1_PIN                2

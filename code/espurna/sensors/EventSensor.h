@@ -24,7 +24,7 @@ class EventSensor : public BaseSensor {
         // ---------------------------------------------------------------------
 
         EventSensor() {
-            _count = 1;
+            _count = 2;
             _sensor_id = SENSOR_EVENTS_ID;
         }
 
@@ -38,10 +38,6 @@ class EventSensor : public BaseSensor {
             _gpio = gpio;
         }
 
-        void setTrigger(bool trigger) {
-            _trigger = trigger;
-        }
-
         void setPinMode(unsigned char pin_mode) {
             _pin_mode = pin_mode;
         }
@@ -51,17 +47,13 @@ class EventSensor : public BaseSensor {
         }
 
         void setDebounceTime(unsigned long ms) {
-            _debounce = microsecondsToClockCycles(ms * 1000);
+            _isr_debounce = microsecondsToClockCycles(ms * 1000);
         }
 
         // ---------------------------------------------------------------------
 
         unsigned char getGPIO() {
             return _gpio;
-        }
-
-        bool getTrigger() {
-            return _trigger;
         }
 
         unsigned char getPinMode() {
@@ -73,7 +65,7 @@ class EventSensor : public BaseSensor {
         }
 
         unsigned long getDebounceTime() {
-            return _debounce;
+            return _isr_debounce;
         }
 
         // ---------------------------------------------------------------------
@@ -85,7 +77,6 @@ class EventSensor : public BaseSensor {
         void begin() {
             pinMode(_gpio, _pin_mode);
             _enableInterrupts(true);
-            _count = _trigger ? 2 : 1;
             _ready = true;
         }
 
@@ -113,44 +104,47 @@ class EventSensor : public BaseSensor {
             return MAGNITUDE_NONE;
         }
 
-        // Current value for slot # index
-        double value(unsigned char index) {
-            if (index == 0) {
-                double value = _counter;
-                _counter = 0;
-                return value;
-            };
-            if (index == 1) {
-                return _value;
+        void pre() override {
+            ETS_GPIO_INTR_DISABLE();
+            _current = _counter;
+            _counter = 0ul;
+            ETS_GPIO_INTR_ENABLE();
+        }
+
+        double value(unsigned char index) override {
+            switch (index) {
+            case 0:
+                return _current;
+            case 1:
+                return (_current > 0) ? 1.0 : 0.0;
+            default:
+                return 0.0;
             }
-            return 0;
         }
 
         // Handle interrupt calls from isr[GPIO] functions
-        void ICACHE_RAM_ATTR handleInterrupt(unsigned char gpio) {
-            // clock count in 32bit value, overflowing:
+        // Cannot be nested, since the esp8266/Arduino Core already masks all GPIO handlers before calling this function
+
+        void ICACHE_RAM_ATTR handleDebouncedInterrupt() {
+            // Debounce is based around ccount (32bit value), overflowing every:
             // ~53s when F_CPU is 80MHz
             // ~26s when F_CPU is 160MHz
             // see: cores/esp8266/Arduino.h definitions
             //
-            // Note:
             // To convert to / from normal time values, use:
             // - microsecondsToClockCycles(microseconds)
             // - clockCyclesToMicroseconds(cycles)
             // Since the division operation on this chip is pretty slow,
-            // avoid doing the conversion here
-            unsigned long cycles = ESP.getCycleCount();
-
-            if (cycles - _last > _debounce) {
-                _last = cycles;
-                _counter += 1;
-
-                // we are handling callbacks in tick()
-                if (_trigger) {
-                    _trigger_value = digitalRead(gpio);
-                    _trigger_flag = true;
-                }
+            // avoid doing the conversion here and instead do that at initialization
+            auto cycles = ESP.getCycleCount();
+            if (cycles - _isr_last > _isr_debounce) {
+                _isr_last = cycles;
+                ++_counter;
             }
+        }
+
+        void ICACHE_RAM_ATTR handleInterrupt() {
+            ++_counter;
         }
 
     protected:
@@ -163,32 +157,27 @@ class EventSensor : public BaseSensor {
         void _detach(unsigned char gpio);
 
         void _enableInterrupts(bool value) {
-
             if (value) {
                 _detach(_gpio);
                 _attach(_gpio, _interrupt_mode);
             } else {
                 _detach(_gpio);
             }
-
         }
 
         // ---------------------------------------------------------------------
         // Protected
         // ---------------------------------------------------------------------
 
-        volatile unsigned long _counter = 0;
-        unsigned char _value = 0;
-        unsigned long _last = 0;
-        unsigned long _debounce = microsecondsToClockCycles(EVENTS1_DEBOUNCE * 1000);
+        unsigned long _counter { 0ul };
+        unsigned long _current { 0ul };
 
-        bool _trigger = false;
-        bool _trigger_flag = false;
-        unsigned char _trigger_value = false;
+        unsigned long _isr_last { 0ul };
+        unsigned long _isr_debounce { microsecondsToClockCycles(EVENTS1_DEBOUNCE * 1000) };
 
-        unsigned char _gpio = GPIO_NONE;
-        unsigned char _pin_mode = INPUT;
-        unsigned char _interrupt_mode = RISING;
+        int _gpio { GPIO_NONE };
+        int _pin_mode { INPUT };
+        int _interrupt_mode { RISING };
 
 };
 
@@ -198,23 +187,24 @@ class EventSensor : public BaseSensor {
 
 EventSensor * _event_sensor_instance[EVENTS_SENSORS_MAX] = {nullptr};
 
-void ICACHE_RAM_ATTR _event_sensor_isr(unsigned char gpio) {
-    unsigned char index = gpio > 5 ? gpio-6 : gpio;
-    if (_event_sensor_instance[index]) {
-        _event_sensor_instance[index]->handleInterrupt(gpio);
+void ICACHE_RAM_ATTR _event_sensor_isr(EventSensor* instance) {
+    if (instance->getDebounceTime()) {
+        instance->handleDebouncedInterrupt();
+    } else {
+        instance->handleInterrupt();
     }
 }
 
-void ICACHE_RAM_ATTR _event_sensor_isr_0() { _event_sensor_isr(0); }
-void ICACHE_RAM_ATTR _event_sensor_isr_1() { _event_sensor_isr(1); }
-void ICACHE_RAM_ATTR _event_sensor_isr_2() { _event_sensor_isr(2); }
-void ICACHE_RAM_ATTR _event_sensor_isr_3() { _event_sensor_isr(3); }
-void ICACHE_RAM_ATTR _event_sensor_isr_4() { _event_sensor_isr(4); }
-void ICACHE_RAM_ATTR _event_sensor_isr_5() { _event_sensor_isr(5); }
-void ICACHE_RAM_ATTR _event_sensor_isr_12() { _event_sensor_isr(12); }
-void ICACHE_RAM_ATTR _event_sensor_isr_13() { _event_sensor_isr(13); }
-void ICACHE_RAM_ATTR _event_sensor_isr_14() { _event_sensor_isr(14); }
-void ICACHE_RAM_ATTR _event_sensor_isr_15() { _event_sensor_isr(15); }
+void ICACHE_RAM_ATTR _event_sensor_isr_0() { _event_sensor_isr(_event_sensor_instance[0]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_1() { _event_sensor_isr(_event_sensor_instance[1]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_2() { _event_sensor_isr(_event_sensor_instance[2]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_3() { _event_sensor_isr(_event_sensor_instance[3]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_4() { _event_sensor_isr(_event_sensor_instance[4]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_5() { _event_sensor_isr(_event_sensor_instance[5]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_12() { _event_sensor_isr(_event_sensor_instance[6]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_13() { _event_sensor_isr(_event_sensor_instance[7]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_14() { _event_sensor_isr(_event_sensor_instance[8]); }
+void ICACHE_RAM_ATTR _event_sensor_isr_15() { _event_sensor_isr(_event_sensor_instance[9]); }
 
 static void (*_event_sensor_isr_list[10])() = {
     _event_sensor_isr_0, _event_sensor_isr_1, _event_sensor_isr_2,
