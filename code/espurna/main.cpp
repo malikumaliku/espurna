@@ -152,6 +152,31 @@ void setup() {
     // Show welcome message and system configuration
     info(true);
 
+    // Hardware GPIO expander, needs to be available for modules down below
+    #if MCP23S08_SUPPORT
+        MCP23S08Setup();
+    #endif
+    // lightSetup must be called before relaySetup
+    #if LIGHT_PROVIDER != LIGHT_PROVIDER_NONE
+        lightSetup();
+    #endif
+    // rpnSetup must be called before relaySetup
+    #if RPN_RULES_SUPPORT
+        rpnSetup();
+    #endif
+    #if RELAY_SUPPORT
+        relaySetup();
+    #endif
+    #if BUTTON_SUPPORT
+        buttonSetup();
+    #endif
+    #if ENCODER_SUPPORT && (LIGHT_PROVIDER != LIGHT_PROVIDER_NONE)
+        encoderSetup();
+    #endif
+    #if LED_SUPPORT
+        ledSetup();
+    #endif
+
     // powercut, and 30 nodes connecting simoultaneously to same AP is not a good idea
     // connect, or any other kind of regular event earch X seconds (data publishing, mdns)
     // side effect with SYSTEM_CHECK_TIME???? Increase SYSTEM_CHECK_TIME to 120000?
@@ -200,32 +225,6 @@ void setup() {
 
     #if PROMETHEUS_SUPPORT
         prometheusSetup();
-    #endif
-
-    // Hardware GPIO expander, needs to be available for modules down below
-    #if MCP23S08_SUPPORT
-        MCP23S08Setup();
-    #endif
-
-    // lightSetup must be called before relaySetup
-    #if LIGHT_PROVIDER != LIGHT_PROVIDER_NONE
-        lightSetup();
-    #endif
-    // rpnSetup must be called before relaySetup
-    #if RPN_RULES_SUPPORT
-        rpnSetup();
-    #endif
-    #if RELAY_SUPPORT
-        relaySetup();
-    #endif
-    #if BUTTON_SUPPORT
-        buttonSetup();
-    #endif
-    #if ENCODER_SUPPORT && (LIGHT_PROVIDER != LIGHT_PROVIDER_NONE)
-        encoderSetup();
-    #endif
-    #if LED_SUPPORT
-        ledSetup();
     #endif
 
     #if MQTT_SUPPORT
