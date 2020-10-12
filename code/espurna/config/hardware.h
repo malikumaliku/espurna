@@ -3422,10 +3422,10 @@
     #define DEBUG_SERIAL_SUPPORT 0
 
 // ----------------------------------------------------------------------------------------
-//  Power socket 16A similar to BLITZWOLF_BWSHPX but button pin differs 
+//  Power socket 16A similar to BLITZWOLF_BWSHPX but button pin differs
 //  IMPORTANT, This template is for hardware version SP111_A_Wifi_Ver1.1 (as printed on the PCB)
 //  hhttps://www.amazon.de/-/en/Smallest-Consumption-Measuring-Function-Compatible/dp/B07PSMF47W
-// ----------------------------------------------------------------------------------------    
+// ----------------------------------------------------------------------------------------
 
 #elif defined(GOSUND_SP111)
 
@@ -4655,9 +4655,6 @@
     #define HLW8012_POWER_RATIO         3414290
     #define HLW8012_INTERRUPT_ON        FALLING
 
-    #define SENSOR_ENERGY_UNITS         ENERGY_KWH
-    #define SENSOR_POWER_UNITS          POWER_WATTS
-
 // -----------------------------------------------------------------------------
 // Kogan Smarter Home Plug with Energy Meter (Australia)
 // Product code: KASPEMHA
@@ -4702,9 +4699,6 @@
     #define HLW8012_VOLTAGE_RATIO       282060
     #define HLW8012_POWER_RATIO         3414290
     #define HLW8012_INTERRUPT_ON        FALLING
-
-    #define SENSOR_ENERGY_UNITS         ENERGY_KWH
-    #define SENSOR_POWER_UNITS          POWER_WATTS
 
 // -----------------------------------------------------------------------------
 // KINGART_CURTAIN_SWITCH
