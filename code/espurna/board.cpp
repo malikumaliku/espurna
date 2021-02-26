@@ -41,6 +41,9 @@ PROGMEM const char espurna_modules[] =
     #if ENCODER_SUPPORT
         "ENCODER "
     #endif
+    #if FAN_SUPPORT
+        "FAN "
+    #endif
     #if HOMEASSISTANT_SUPPORT
         "HOMEASSISTANT "
     #endif
@@ -59,11 +62,8 @@ PROGMEM const char espurna_modules[] =
     #if LLMNR_SUPPORT
         "LLMNR "
     #endif
-    #if MDNS_CLIENT_SUPPORT
-        "MDNS_CLIENT "
-    #endif
     #if MDNS_SERVER_SUPPORT
-        "MDNS_SERVER "
+        "MDNS"
     #endif
     #if MQTT_SUPPORT
         "MQTT "
@@ -113,6 +113,9 @@ PROGMEM const char espurna_modules[] =
     #endif
     #if TERMINAL_SUPPORT
         "TERMINAL "
+    #endif
+    #if GARLAND_SUPPORT
+        "GARLAND "
     #endif
     #if THERMOSTAT_SUPPORT
         "THERMOSTAT "
@@ -175,6 +178,9 @@ PROGMEM const char espurna_webui[] =
     #endif
     #if WEBUI_IMAGE == WEBUI_IMAGE_LIGHTFOX
         "LIGHTFOX"
+    #endif
+    #if WEBUI_IMAGE == WEBUI_IMAGE_GARLAND
+        "GARLAND"
     #endif
     #if WEBUI_IMAGE == WEBUI_IMAGE_THERMOSTAT
         "THERMOSTAT"

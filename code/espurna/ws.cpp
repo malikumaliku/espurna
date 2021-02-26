@@ -21,7 +21,6 @@ Copyright (C) 2016-2019 by Xose Pérez <xose dot perez at gmail dot com>
 #include "libs/WebSocketIncommingBuffer.h"
 
 AsyncWebSocket _ws("/ws");
-Ticker _ws_defer;
 
 // -----------------------------------------------------------------------------
 // Periodic updates
@@ -34,8 +33,8 @@ void _wsResetUpdateTimer() {
 }
 
 void _wsUpdate(JsonObject& root) {
-    root["heap"] = getFreeHeap();
-    root["uptime"] = getUptime();
+    root["heap"] = systemFreeHeap();
+    root["uptime"] = systemUptime();
     root["rssi"] = WiFi.RSSI();
     root["loadaverage"] = systemLoadAverage();
     if (ADC_MODE_VALUE == ADC_VCC) {
@@ -44,9 +43,19 @@ void _wsUpdate(JsonObject& root) {
         root["vcc"] = "N/A (TOUT) ";
     }
 #if NTP_SUPPORT
+    // XXX: arduinojson default config stores:
+    // - double as float
+    // - int64_t as int32_t
+    // Simply send the string...
     if (ntpSynced()) {
         auto info = ntpInfo();
-        root["now"] = info.now;
+
+        constexpr size_t TimeSize { sizeof(time_t) };
+        const char* const fmt = (TimeSize == 8) ? "%lld" : "%ld";
+        char buffer[TimeSize * 4];
+        sprintf(buffer, fmt, info.now);
+        root["now"] = String(buffer);
+
         root["nowString"] = info.utc;
         root["nowLocalString"] = info.local.length()
             ? info.local
@@ -271,9 +280,9 @@ bool _wsStore(const String& key, JsonArray& values) {
     unsigned char index = 0;
     for (auto& element : values) {
         const auto value = element.as<String>();
-        const auto keyobj = settings_key_t {key, index};
-        if (!hasSetting(keyobj) || value != getSetting(keyobj)) {
-            setSetting(keyobj, value);
+        auto setting = SettingsKey {key, index};
+        if (!hasSetting(setting) || value != getSetting(setting)) {
+            setSetting(setting, value);
             changed = true;
         }
         ++index;
@@ -329,52 +338,45 @@ void _wsParse(AsyncWebSocketClient *client, uint8_t * payload, size_t length) {
 
     const char* action = root["action"];
     if (action) {
-
         if (strcmp(action, "ping") == 0) {
             wsSend_P(client_id, PSTR("{\"pong\": 1}"));
             return;
         }
 
-        DEBUG_MSG_P(PSTR("[WEBSOCKET] Requested action: %s\n"), action);
-
         if (strcmp(action, "reboot") == 0) {
-            deferredReset(100, CUSTOM_RESET_WEB);
+            deferredReset(100, CustomResetReason::Web);
             return;
         }
 
         if (strcmp(action, "reconnect") == 0) {
-            _ws_defer.once_ms(100, wifiDisconnect);
+            static Ticker timer;
+            timer.once_ms_scheduled(100, []() {
+                wifiDisconnect();
+                yield();
+            });
             return;
         }
 
         if (strcmp(action, "factory_reset") == 0) {
-            DEBUG_MSG_P(PSTR("\n\nFACTORY RESET\n\n"));
-            resetSettings();
-            deferredReset(100, CUSTOM_RESET_FACTORY);
+            factoryReset();
             return;
         }
 
         JsonObject& data = root["data"];
         if (data.success()) {
-
-            // Callbacks
-            for (auto& callback : _ws_callbacks.on_action) {
-                callback(client_id, action, data);
-            }
-
-            // Restore configuration via websockets
             if (strcmp(action, "restore") == 0) {
                 if (settingsRestoreJson(data)) {
                     wsSend_P(client_id, PSTR("{\"message\": 5}"));
                 } else {
                     wsSend_P(client_id, PSTR("{\"message\": 4}"));
                 }
+                return;
             }
 
-            return;
-
+            for (auto& callback : _ws_callbacks.on_action) {
+                callback(client_id, action, data);
+            }
         }
-
     };
 
     // Check configuration -----------------------------------------------------
@@ -468,11 +470,8 @@ void _wsOnConnected(JsonObject& root) {
     root["webMode"] = WEB_MODE_NORMAL;
 
     root["app_name"] = APP_NAME;
-    root["app_version"] = APP_VERSION;
+    root["app_version"] = getVersion().c_str();
     root["app_build"] = buildTime();
-    #if defined(APP_REVISION)
-        root["app_revision"] = APP_REVISION;
-    #endif
     root["device"] = getDevice().c_str();
     root["manufacturer"] = getManufacturer().c_str();
     root["chipid"] = getChipId().c_str();
@@ -490,8 +489,6 @@ void _wsOnConnected(JsonObject& root) {
 
     root["webPort"] = getSetting("webPort", WEB_PORT);
     root["wsAuth"] = getSetting("wsAuth", 1 == WS_AUTHENTICATION);
-    root["hbMode"] = getSetting("hbMode", HEARTBEAT_MODE);
-    root["hbInterval"] = getSetting("hbInterval", HEARTBEAT_INTERVAL);
 }
 
 void _wsConnected(uint32_t client_id) {
@@ -683,7 +680,7 @@ void wsSend(const char * payload) {
     }
 }
 
-void wsSend_P(PGM_P payload) {
+void wsSend_P(const char* payload) {
     if (_ws.count() > 0) {
         char buffer[strlen_P(payload)];
         strcpy_P(buffer, payload);
@@ -705,7 +702,7 @@ void wsSend(uint32_t client_id, const char * payload) {
     _ws.text(client_id, payload);
 }
 
-void wsSend_P(uint32_t client_id, PGM_P payload) {
+void wsSend_P(uint32_t client_id, const char* payload) {
     char buffer[strlen_P(payload)];
     strcpy_P(buffer, payload);
     _ws.text(client_id, buffer);
@@ -714,7 +711,7 @@ void wsSend_P(uint32_t client_id, PGM_P payload) {
 void wsSetup() {
 
     _ws.onEvent(_wsEvent);
-    webServer()->addHandler(&_ws);
+    webServer().addHandler(&_ws);
 
     // CORS
     const String webDomain = getSetting("webDomain", WEB_REMOTE_DOMAIN);
@@ -723,7 +720,7 @@ void wsSetup() {
         DefaultHeaders::Instance().addHeader("Access-Control-Allow-Credentials", "true");
     }
 
-    webServer()->on("/auth", HTTP_GET, _onAuth);
+    webServer().on("/auth", HTTP_GET, _onAuth);
 
     wsRegister()
         .onConnected(_wsOnConnected)

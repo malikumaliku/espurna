@@ -12,7 +12,6 @@ Copyright (C) 2020 by Maxim Prokhorov <prokhorov dot max at outlook dot com>
 #if TERMINAL_SUPPORT
 
 #include "api.h"
-#include "debug.h"
 #include "settings.h"
 #include "system.h"
 #include "telnet.h"
@@ -186,26 +185,28 @@ static unsigned char _serial_rx_pointer = 0;
 // -----------------------------------------------------------------------------
 
 void _terminalHelpCommand(const terminal::CommandContext& ctx) {
+    auto names = _terminal.names();
 
-    // Get sorted list of commands
-    auto commands = _terminal.commandNames();
-    std::sort(commands.begin(), commands.end(), [](const String& rhs, const String& lhs) -> bool {
-        return lhs.compareTo(rhs) > 0;
+    // XXX: Core's ..._P funcs only allow 2nd pointer to be in PROGMEM,
+    //      explicitly load the 1st one
+    std::sort(names.begin(), names.end(), [](const __FlashStringHelper* lhs, const __FlashStringHelper* rhs) {
+        const String lhs_as_string(lhs);
+        return strncasecmp_P(lhs_as_string.c_str(), reinterpret_cast<const char*>(rhs), lhs_as_string.length()) < 0;
     });
 
-    // Output the list asap
     ctx.output.print(F("Available commands:\n"));
-    for (auto& command : commands) {
-        ctx.output.printf("> %s\n", command.c_str());
+    for (auto* name : names) {
+        ctx.output.printf("> %s\n", reinterpret_cast<const char*>(name));
     }
 
     terminalOK(ctx.output);
-
 }
 
 #if LWIP_VERSION_MAJOR != 1
 
-String _terminalPcbStateToString(unsigned char state) {
+namespace {
+
+inline String _terminalPcbStateToString(unsigned char state) {
     switch (state) {
         case 0: return F("CLOSED");
         case 1: return F("LISTEN");
@@ -279,6 +280,8 @@ void _terminalDnsFound(const char* name, const ip_addr_t* result, void*) {
     _terminalPrintDnsResult(name, result);
 }
 
+} // namespace
+
 #endif // LWIP_VERSION_MAJOR != 1
 
 void _terminalInitCommands() {
@@ -288,7 +291,7 @@ void _terminalInitCommands() {
 
     terminalRegisterCommand(F("ERASE.CONFIG"), [](const terminal::CommandContext&) {
         terminalOK();
-        customResetReason(CUSTOM_RESET_TERMINAL);
+        customResetReason(CustomResetReason::Terminal);
         eraseSDKConfig();
         *((int*) 0) = 0; // see https://github.com/esp8266/Arduino/issues/1494
     });
@@ -313,7 +316,7 @@ void _terminalInitCommands() {
         }
 
         int start = 0;
-        int end = GpioPins;
+        int end = gpioPins();
 
         switch (ctx.argc) {
         case 3:
@@ -327,8 +330,9 @@ void _terminalInitCommands() {
         case 1:
             for (auto current = start; current < end; ++current) {
                 if (gpioValid(current)) {
-                    ctx.output.printf_P(PSTR("%s @ GPIO%02d (%s)\n"),
-                        GPEP(current) ? "OUTPUT" : " INPUT",
+                    ctx.output.printf_P(PSTR("%c %s @ GPIO%02d (%s)\n"),
+                        gpioLocked(current) ? '*' : ' ',
+                        GPEP(current) ? "OUTPUT" : "INPUT ",
                         current,
                         (HIGH == digitalRead(current)) ? "HIGH" : "LOW"
                     );
@@ -340,14 +344,20 @@ void _terminalInitCommands() {
         terminalOK(ctx);
     });
 
-    terminalRegisterCommand(F("HEAP"), [](const terminal::CommandContext&) {
-        infoHeapStats();
-        terminalOK();
+    terminalRegisterCommand(F("HEAP"), [](const terminal::CommandContext& ctx) {
+        static auto initial = systemInitialFreeHeap();
+
+        auto stats = systemHeapStats();
+        ctx.output.printf_P(PSTR("initial: %u, available: %u, fragmentation: %hhu%%\n"),
+            initial, stats.available, stats.frag_pct);
+
+        terminalOK(ctx);
     });
 
-    terminalRegisterCommand(F("STACK"), [](const terminal::CommandContext&) {
-        infoMemory("Stack", CONT_STACKSIZE, getFreeStack());
-        terminalOK();
+    terminalRegisterCommand(F("STACK"), [](const terminal::CommandContext& ctx) {
+        ctx.output.printf_P(PSTR("continuation stack initial: %d, free: %u\n"),
+            CONT_STACKSIZE, systemFreeStack());
+        terminalOK(ctx);
     });
 
     terminalRegisterCommand(F("INFO"), [](const terminal::CommandContext&) {
@@ -355,20 +365,21 @@ void _terminalInitCommands() {
         terminalOK();
     });
 
-    terminalRegisterCommand(F("RESET"), [](const terminal::CommandContext&) {
-        terminalOK();
-        deferredReset(100, CUSTOM_RESET_TERMINAL);
+    terminalRegisterCommand(F("RESET"), [](const terminal::CommandContext& ctx) {
+        if (ctx.argc == 2) {
+            auto arg = ctx.argv[1].toInt();
+            if (arg < SYSTEM_CHECK_MAX) {
+                systemStabilityCounter(arg);
+            }
+        }
+
+        terminalOK(ctx);
+        deferredReset(100, CustomResetReason::Terminal);
     });
 
-    terminalRegisterCommand(F("RESET.SAFE"), [](const terminal::CommandContext&) {
-        systemStabilityCounter(SYSTEM_CHECK_MAX);
-        terminalOK();
-        deferredReset(100, CUSTOM_RESET_TERMINAL);
-    });
-
-    terminalRegisterCommand(F("UPTIME"), [](const terminal::CommandContext&) {
-        infoUptime();
-        terminalOK();
+    terminalRegisterCommand(F("UPTIME"), [](const terminal::CommandContext& ctx) {
+        ctx.output.println(getUptime());
+        terminalOK(ctx);
     });
 
     #if SECURE_CLIENT == SECURE_CLIENT_BEARSSL
@@ -471,54 +482,6 @@ void _terminalLoop() {
 
 }
 
-#if WEB_SUPPORT && TERMINAL_WEB_API_SUPPORT
-
-bool _terminalWebApiMatchPath(AsyncWebServerRequest* request) {
-    const String api_path = getSetting("termWebApiPath", TERMINAL_WEB_API_PATH);
-    return request->url().equals(api_path);
-}
-
-void _terminalWebApiSetup() {
-
-    webRequestRegister([](AsyncWebServerRequest* request) {
-        // continue to the next handler if path does not match
-        if (!_terminalWebApiMatchPath(request)) return false;
-
-        // return 'true' after this point, since we did handle the request
-        webLog(request);
-        if (!apiAuthenticate(request)) return true;
-
-        auto* cmd_param = request->getParam("line", (request->method() == HTTP_PUT));
-        if (!cmd_param) {
-            request->send(500);
-            return true;
-        }
-
-        auto cmd = cmd_param->value();
-        if (!cmd.length()) {
-            request->send(500);
-            return true;
-        }
-
-        if (!cmd.endsWith("\r\n") && !cmd.endsWith("\n")) {
-            cmd += '\n';
-        }
-
-        // TODO: batch requests? processLine() -> process(...)
-        AsyncWebPrint::scheduleFromRequest(request, [cmd](Print& print) {
-            StreamAdapter<const char*> stream(print, cmd.c_str(), cmd.c_str() + cmd.length() + 1);
-            terminal::Terminal handler(stream);
-            handler.processLine();
-        });
-
-        return true;
-    });
-
-}
-
-#endif // WEB_SUPPORT && TERMINAL_WEB_API_SUPPORT
-
-
 #if MQTT_SUPPORT && TERMINAL_MQTT_SUPPORT
 
 void _terminalMqttSetup() {
@@ -571,11 +534,97 @@ void _terminalMqttSetup() {
 
 #endif // MQTT_SUPPORT && TERMINAL_MQTT_SUPPORT
 
-}
+} // namespace
 
 // -----------------------------------------------------------------------------
 // Pubic API
 // -----------------------------------------------------------------------------
+
+#if TERMINAL_WEB_API_SUPPORT
+
+// XXX: new `apiRegister()` depends that `webServer()` is available, meaning we can't call this setup func
+// before the `webSetup()` is called. ATM, just make sure it is in order.
+
+void terminalWebApiSetup() {
+#if API_SUPPORT
+    apiRegister(getSetting("termWebApiPath", TERMINAL_WEB_API_PATH),
+        [](ApiRequest& api) {
+            api.handle([](AsyncWebServerRequest* request) {
+                AsyncResponseStream *response = request->beginResponseStream("text/plain");
+                for (auto* name : _terminal.names()) {
+                    response->print(name);
+                    response->print("\r\n");
+                }
+
+                request->send(response);
+            });
+            return true;
+        },
+        [](ApiRequest& api) {
+            // TODO: since HTTP spec allows query string to contain repeating keys, allow iteration
+            // over every received 'line' to provide a way to call multiple commands at once
+            auto cmd = api.param(F("line"));
+            if (!cmd.length()) {
+                return false;
+            }
+
+            if (!cmd.endsWith("\r\n") && !cmd.endsWith("\n")) {
+                cmd += '\n';
+            }
+
+            api.handle([&](AsyncWebServerRequest* request) {
+                AsyncWebPrint::scheduleFromRequest(request, [cmd](Print& print) {
+                    StreamAdapter<const char*> stream(print, cmd.c_str(), cmd.c_str() + cmd.length() + 1);
+                    terminal::Terminal handler(stream);
+                    handler.processLine();
+                });
+            });
+
+            return true;
+        }
+    );
+#else
+    webRequestRegister([](AsyncWebServerRequest* request) {
+        String path(F(API_BASE_PATH));
+        path += getSetting("termWebApiPath", TERMINAL_WEB_API_PATH);
+        if (path != request->url()) {
+            return false;
+        }
+
+        if (!apiAuthenticate(request)) {
+            request->send(403);
+            return true;
+        }
+
+        auto* cmd_param = request->getParam("line", (request->method() == HTTP_PUT));
+        if (!cmd_param) {
+            request->send(500);
+            return true;
+        }
+
+        auto cmd = cmd_param->value();
+        if (!cmd.length()) {
+            request->send(500);
+            return true;
+        }
+
+        if (!cmd.endsWith("\r\n") && !cmd.endsWith("\n")) {
+            cmd += '\n';
+        }
+
+        // TODO: batch requests? processLine() -> process(...)
+        AsyncWebPrint::scheduleFromRequest(request, [cmd](Print& print) {
+            StreamAdapter<const char*> stream(print, cmd.c_str(), cmd.c_str() + cmd.length() + 1);
+            terminal::Terminal handler(stream);
+            handler.processLine();
+        });
+
+        return true;
+    });
+#endif // API_SUPPORT
+}
+
+#endif // TERMINAL_WEB_API_SUPPORT
 
 Stream & terminalDefaultStream() {
     return (Stream &) _io;
@@ -593,7 +642,7 @@ void terminalInject(char ch) {
     _io.inject(ch);
 }
 
-void terminalRegisterCommand(const String& name, terminal::Terminal::CommandFunc func) {
+void terminalRegisterCommand(const __FlashStringHelper* name, terminal::Terminal::CommandFunc func) {
     terminal::Terminal::addCommand(name, func);
 };
 
@@ -627,11 +676,6 @@ void terminalSetup() {
     #if WEB_SUPPORT
         wsRegister()
             .onVisible([](JsonObject& root) { root["cmdVisible"] = 1; });
-    #endif
-
-    // Run terminal command and send back the result. Depends on the terminal command using ctx.output
-    #if WEB_SUPPORT && TERMINAL_WEB_API_SUPPORT
-        _terminalWebApiSetup();
     #endif
 
     // Similar to the above, but we allow only very small and in-place outputs.

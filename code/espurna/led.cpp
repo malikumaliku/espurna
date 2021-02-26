@@ -23,16 +23,14 @@ Copyright (C) 2016-2019 by Xose Pérez <xose dot perez at gmail dot com>
 
 // LED helper class
 
-led_t::led_t(unsigned char pin, bool inverse, unsigned char mode, unsigned char relayID) :
-    pin(pin),
-    inverse(inverse),
-    mode(mode),
-    relayID(relayID)
+led_t::led_t(unsigned char pin_, bool inverse_, unsigned char mode_, unsigned char relayID_) :
+    pin(pin_),
+    inverse(inverse_),
+    mode(mode_),
+    relayID(relayID_)
 {
-    if (pin != GPIO_NONE) {
-        pinMode(pin, OUTPUT);
-        status(false);
-    }
+    pinMode(pin, OUTPUT);
+    status(false);
 }
 
 bool led_t::status() {
@@ -429,7 +427,19 @@ void ledLoop() {
 
 }
 
+void _ledSettingsMigrate(int version) {
+    if (!version || (version >= 5)) {
+        return;
+    }
+
+    delSettingPrefix({
+        "ledGPIO",
+        "ledLogic"
+    });
+}
+
 void ledSetup() {
+    _ledSettingsMigrate(migrateVersion());
 
     size_t leds = 0;
 
@@ -462,9 +472,10 @@ void ledSetup() {
 
     for (unsigned char index=0; index < LedsMax; ++index) {
         const auto pin = getSetting({"ledGPIO", index}, _ledPin(index));
-        if (!gpioValid(pin)) {
+        if (!gpioLock(pin)) {
             break;
         }
+
         _leds.emplace_back(
             pin,
             getSetting({"ledInv", index}, _ledInverse(index)),
