@@ -150,6 +150,8 @@ void setup() {
     uint rndDelay = secureRandom(0, getSetting("bootDelayMax",60));
     delay(rndDelay*1000);
 
+    boardSetup();
+
     wifiSetup();
     otaSetup();
 
