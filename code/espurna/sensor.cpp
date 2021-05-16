@@ -11,7 +11,6 @@ Copyright (C) 2016-2019 by Xose Pérez <xose dot perez at gmail dot com>
 #if SENSOR_SUPPORT
 
 #include "api.h"
-#include "broker.h"
 #include "domoticz.h"
 #include "i2c.h"
 #include "mqtt.h"
@@ -167,6 +166,10 @@ Copyright (C) 2016-2019 by Xose Pérez <xose dot perez at gmail dot com>
 
 #if SI7021_SUPPORT
     #include "sensors/SI7021Sensor.h"
+#endif
+
+#if SM300D2_SUPPORT
+    #include "sensors/SM300D2Sensor.h"
 #endif
 
 #if SONAR_SUPPORT
@@ -528,9 +531,6 @@ void _magnitudeSaveEnergyTotal(sensor_magnitude_t& magnitude, bool persistent) {
 
 // ---------------------------------------------------------------------------
 
-BrokerBind(SensorReadBroker);
-BrokerBind(SensorReportBroker);
-
 std::vector<BaseSensor *> _sensors;
 std::vector<sensor_magnitude_t> _magnitudes;
 bool _sensors_ready = false;
@@ -538,6 +538,22 @@ bool _sensors_ready = false;
 bool _sensor_realtime = API_REAL_TIME_VALUES;
 unsigned long _sensor_read_interval = 1000 * SENSOR_READ_INTERVAL;
 unsigned char _sensor_report_every = SENSOR_REPORT_EVERY;
+
+// ---------------------------------------------------------------------------
+
+using MagnitudeReadHandlers = std::forward_list<MagnitudeReadHandler>;
+
+MagnitudeReadHandlers _magnitude_read_handlers;
+
+void sensorSetMagnitudeRead(MagnitudeReadHandler handler) {
+    _magnitude_read_handlers.push_front(handler);
+}
+
+MagnitudeReadHandlers _magnitude_report_handlers;
+
+void sensorSetMagnitudeReport(MagnitudeReadHandler handler) {
+    _magnitude_report_handlers.push_front(handler);
+}
 
 // -----------------------------------------------------------------------------
 // Private
@@ -740,6 +756,12 @@ String magnitudeTopic(unsigned char type) {
             break;
         case MAGNITUDE_FREQUENCY:
             result = F("frequency");
+            break;
+        case MAGNITUDE_TVOC:
+            result = F("tvoc");
+            break;
+        case MAGNITUDE_CH2O:
+            result = F("ch2o");
             break;
         case MAGNITUDE_NONE:
         default:
@@ -1011,6 +1033,8 @@ const char * const _magnitudeSettingsPrefix(unsigned char type) {
     case MAGNITUDE_RESISTANCE: return "res";
     case MAGNITUDE_PH: return "ph";
     case MAGNITUDE_FREQUENCY: return "freq";
+    case MAGNITUDE_TVOC: return "tvoc";
+    case MAGNITUDE_CH2O: return "ch2o";
     default: return nullptr;
     }
 }
@@ -1277,6 +1301,12 @@ String magnitudeName(unsigned char type) {
         case MAGNITUDE_FREQUENCY:
             result = F("Frequency");
             break;
+        case MAGNITUDE_TVOC:
+            result = F("TVOC");
+            break;
+        case MAGNITUDE_CH2O:
+            result = F("CH2O");
+            break;
         case MAGNITUDE_NONE:
         default:
             break;
@@ -1309,14 +1339,6 @@ void _sensorWebSocketOnVisible(JsonObject& root) {
 }
 
 void _sensorWebSocketMagnitudesConfig(JsonObject& root) {
-
-    // retrieve per-type ...Correction settings, when available
-    _magnitudeForEachCounted([&root](unsigned char type) {
-        if (_magnitudeCanUseCorrection(type)) {
-            auto key = String(_magnitudeSettingsPrefix(type)) + F("Correction");
-            root[key] = getSetting(key, _magnitudeCorrection(type));
-        }
-    });
 
     JsonObject& magnitudes = root.createNestedObject("magnitudesConfig");
     uint8_t size = 0;
@@ -2116,6 +2138,14 @@ void _sensorLoad() {
     }
     #endif
 
+    #if SM300D2_SUPPORT
+    {
+        SM300D2Sensor * sensor = new SM300D2Sensor();
+        sensor->setRX(SM300D2_RX_PIN);
+        _sensors.push_back(sensor);
+    }
+    #endif
+
     #if T6613_SUPPORT
     {
         T6613Sensor * sensor = new T6613Sensor();
@@ -2266,9 +2296,9 @@ void _sensorReport(unsigned char index, const sensor_magnitude_t& magnitude) {
     char buffer[64];
     dtostrf(magnitude.reported, 1, magnitude.decimals, buffer);
 
-#if BROKER_SUPPORT
-    SensorReportBroker::Publish(magnitudeTopic(magnitude.type), magnitude.index_global, magnitude.reported, buffer);
-#endif
+    for (auto& handler : _magnitude_report_handlers) {
+        handler(magnitudeTopic(magnitude.type), magnitude.index_global, magnitude.reported, buffer);
+    }
 
 #if MQTT_SUPPORT
     {
@@ -2372,22 +2402,26 @@ namespace settings {
 namespace internal {
 
 template <>
-sensor::Unit convert(const String& string) {
-    const int value = string.toInt();
-    if ((value > static_cast<int>(sensor::Unit::Min_)) && (value < static_cast<int>(sensor::Unit::Max_))) {
-        return static_cast<sensor::Unit>(value);
+sensor::Unit convert(const String& value) {
+    auto len = value.length();
+    if (len && isNumber(value)) {
+        constexpr int Min { static_cast<int>(sensor::Unit::Min_) };
+        constexpr int Max { static_cast<int>(sensor::Unit::Max_) };
+        auto num = convert<int>(value);
+        if ((Min < num) && (num < Max)) {
+            return static_cast<sensor::Unit>(num);
+        }
     }
 
     return sensor::Unit::None;
 }
 
-template <>
-String serialize(const sensor::Unit& unit) {
-    return String(static_cast<int>(unit));
+String serialize(sensor::Unit unit) {
+    return serialize(static_cast<int>(unit));
 }
 
-} // ns settings::internal
-} // ns settings
+} // namespace internal
+} // namespace settings
 
 void _sensorConfigure() {
 
@@ -2662,36 +2696,32 @@ String magnitudeTopicIndex(unsigned char index) {
 
 // -----------------------------------------------------------------------------
 
-void _sensorBackwards() {
-
+void _sensorBackwards(int version) {
     // Some keys from older versions were longer
-    moveSetting("powerUnits", "pwrUnits");
-    moveSetting("energyUnits", "eneUnits");
-
-    // Energy is now indexed (based on magnitude.index_global)
-    moveSetting("eneTotal", "eneTotal0");
-
-	// Update PZEM004T energy total across multiple devices
-    moveSettings("pzEneTotal", "eneTotal");
-
-    // Unit ID is no longer shared, drop when equal to Min_ or None
-    const char *keys[3] = {
-        "pwrUnits", "eneUnits", "tmpUnits"
-    };
-
-    for (auto* key : keys) {
-        const auto units = getSetting(key);
-        if (units.length() && (units.equals("0") || units.equals("1"))) {
-            delSetting(key);
-        }
+    if (version < 3) {
+        moveSetting("powerUnits", "pwrUnits");
+        moveSetting("energyUnits", "eneUnits");
     }
 
+    // Energy is now indexed (based on magnitude.index_global)
+	// Also update PZEM004T energy total across multiple devices
+    if (version < 5) {
+        moveSetting("eneTotal", "eneTotal0");
+        moveSettings("pzEneTotal", "eneTotal");
+    }
+
+    // Unit ID is no longer shared, drop when equal to Min_ or None
+    if (version < 5) {
+        delSetting("pwrUnits");
+        delSetting("eneUnits");
+        delSetting("tmpUnits");
+    }
 }
 
 void sensorSetup() {
 
     // Settings backwards compatibility
-    _sensorBackwards();
+    _sensorBackwards(migrateVersion());
 
     // Load configured sensors and set up all of magnitudes
     _sensorLoad();
@@ -2819,13 +2849,13 @@ void sensorLoop() {
             // -------------------------------------------------------------
 
             value_show = _magnitudeProcess(magnitude, value_raw);
-#if BROKER_SUPPORT
             {
                 char buffer[64];
                 dtostrf(value_show, 1, magnitude.decimals, buffer);
-                SensorReadBroker::Publish(magnitudeTopic(magnitude.type), magnitude.index_global, value_show, buffer);
+                for (auto& handler : _magnitude_read_handlers) {
+                    handler(magnitudeTopic(magnitude.type), magnitude.index_global, value_show, buffer);
+                }
             }
-#endif
 
             // -------------------------------------------------------------
             // Debug

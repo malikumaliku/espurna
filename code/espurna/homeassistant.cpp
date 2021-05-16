@@ -65,7 +65,7 @@ public:
         Strings(const Strings&) = delete;
 
         Strings(Strings&&) = default;
-        Strings(String&& prefix_, String&& name_, const String& identifier_, const String& version_, const String& manufacturer_, const String& device_) :
+        Strings(String&& prefix_, String&& name_, const String& identifier_, const char* version_, const char* manufacturer_, const char* device_) :
             prefix(std::move(prefix_)),
             name(std::move(name_)),
             identifier(identifier_),
@@ -80,9 +80,9 @@ public:
         String prefix;
         String name;
         String identifier;
-        String version;
-        String manufacturer;
-        String device;
+        const char* version;
+        const char* manufacturer;
+        const char* device;
     };
 
     using StringsPtr = std::unique_ptr<Strings>;
@@ -96,7 +96,7 @@ public:
     Device(const Device&) = delete;
 
     Device(Device&&) = default;
-    Device(String&& prefix, String&& name, const String& identifier, const String& version, const String& manufacturer, const String& device) :
+    Device(String&& prefix, String&& name, const String& identifier, const char* version, const char* manufacturer, const char* device) :
         _strings(std::make_unique<Strings>(std::move(prefix), std::move(name), identifier, version, manufacturer, device)),
         _buffer(std::make_unique<Buffer>()),
         _root(_buffer->createObject())
@@ -105,9 +105,9 @@ public:
         ids.add(_strings->identifier.c_str());
 
         _root["name"] = _strings->name.c_str();
-        _root["sw"] = _strings->version.c_str();
-        _root["mf"] = _strings->manufacturer.c_str();
-        _root["mdl"] = _strings->device.c_str();
+        _root["sw"] = _strings->version;
+        _root["mf"] = _strings->manufacturer;
+        _root["mdl"] = _strings->device;
     }
 
     const String& name() const {
@@ -187,7 +187,7 @@ private:
     String _prefix;
     DevicePtr _device;
 
-    JsonBufferPtr _json;
+    JsonBufferPtr _json { nullptr };
     size_t _capacity { 0ul };
 };
 
@@ -272,19 +272,7 @@ public:
         _ctx(ctx),
         _relay(makeRelayContext()),
         _relays(relayCount())
-    {
-        if (!_relays) {
-            return;
-        }
-
-        auto& json = root();
-        json["dev"] = _ctx.device();
-        json["avty_t"] = _relay.availability.c_str();
-        json["pl_avail"] = _relay.payload_available.c_str();
-        json["pl_not_avail"] = _relay.payload_not_available.c_str();
-        json["pl_on"] = _relay.payload_on.c_str();
-        json["pl_off"] = _relay.payload_off.c_str();
-    }
+    {}
 
     JsonObject& root() {
         if (!_root) {
@@ -318,6 +306,12 @@ public:
     const String& message() override {
         if (!_message.length()) {
             auto& json = root();
+            json["dev"] = _ctx.device();
+            json["avty_t"] = _relay.availability.c_str();
+            json["pl_avail"] = _relay.payload_available.c_str();
+            json["pl_not_avail"] = _relay.payload_not_available.c_str();
+            json["pl_on"] = _relay.payload_on.c_str();
+            json["pl_off"] = _relay.payload_off.c_str();
             json["uniq_id"] = uniqueId();
             json["name"] = _ctx.name() + ' ' + _index;
             json["stat_t"] = mqttTopic(MQTT_TOPIC_RELAY, _index, false);
@@ -718,7 +712,7 @@ public:
             return false;
         }
 
-        return (--_retry < 0);
+        return (--_retry > 0);
     }
 
     Context& context() {
@@ -797,7 +791,13 @@ void send(TaskPtr ptr, FlagPtr flag_ptr);
 
 void stop(bool done) {
     timer.detach();
-    state = done ? State::Sent : State::Pending;
+    if (done) {
+        DEBUG_MSG_P(PSTR("[HA] Stopping discovery\n"));
+        state = State::Sent;
+    } else {
+        DEBUG_MSG_P(PSTR("[HA] Discovery error\n"));
+        state = State::Pending;
+    }
 }
 
 void schedule(unsigned long wait, TaskPtr ptr, FlagPtr flag_ptr) {
@@ -861,10 +861,7 @@ void send(TaskPtr ptr, FlagPtr flag_ptr) {
         return;
     }
 
-    if (task.done()) {
-        stop(true);
-        return;
-    }
+    stop(false);
 }
 
 } // namespace internal

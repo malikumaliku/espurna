@@ -60,7 +60,6 @@
     // Disable non-core modules
     #define ALEXA_SUPPORT           0
     #define API_SUPPORT             0
-    #define BROKER_SUPPORT          0
     #define DEBUG_SERIAL_SUPPORT    0
     #define DEBUG_TELNET_SUPPORT    0
     #define DEBUG_WEB_SUPPORT       0
@@ -99,7 +98,6 @@
     // Disable non-core modules
     #define ALEXA_SUPPORT           0
     #define API_SUPPORT             0
-    #define BROKER_SUPPORT          0
     #define DOMOTICZ_SUPPORT        0
     #define DEBUG_SERIAL_SUPPORT    0
     //#define DEBUG_TELNET_SUPPORT    0
@@ -4983,6 +4981,23 @@
     #define LIGHT_CH1_INVERSE             0
     #define LIGHT_CH2_PIN                 4       // COLD WHITE LED PWM PIN
     #define LIGHT_CH2_INVERSE             0
+
+// -----------------------------------------------------------------------------
+// Mirabella Genio White A60
+// https://www.woolworths.com.au/shop/productdetails/877102/mirabella-smart-led-gls-es-9w-cool-white
+// Like https://www.mirabellagenio.com.au/product-range/mirabella-genio-wi-fi-dimmable-9w-led-gls-bulb/ 
+// but in cardboard box, Item # I002604
+// -----------------------------------------------------------------------------
+
+#elif defined(MIRABELLA_GENIO_W_A60)
+
+    // Info
+    #define MANUFACTURER        "MIRABELLA"
+    #define DEVICE              "GENIO_W_A60"
+    #define LIGHT_PROVIDER      LIGHT_PROVIDER_DIMMER
+
+    // Light
+    #define LIGHT_CH1_PIN       14       // WHITE
 
 #else
 

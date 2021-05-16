@@ -9,7 +9,6 @@ Copyright (C) 2019 by Xose Pérez <xose dot perez at gmail dot com>
 #include "espurna.h"
 
 #include <Ticker.h>
-#include <Schedule.h>
 
 #include "rtcmem.h"
 #include "ws.h"
@@ -164,43 +163,45 @@ void _systemRtcmemResetReason(CustomResetReason reason) {
 //
 // An unstable system will only have serial access, WiFi in AP mode and OTA
 
-bool _systemStable = true;
+constexpr unsigned char _systemCheckMin() {
+    return 0u;
+}
 
-void systemCheck(bool stable) {
-    uint8_t value = 0;
+constexpr unsigned char _systemCheckMax() {
+    return SYSTEM_CHECK_MAX;
+}
 
-    if (stable) {
-        value = 0;
-        DEBUG_MSG_P(PSTR("[MAIN] System OK\n"));
-    } else {
-        if (!rtcmemStatus()) {
-            systemStabilityCounter(1);
-            return;
-        }
+constexpr unsigned long _systemCheckTime() {
+    return SYSTEM_CHECK_TIME;
+}
 
-        value = systemStabilityCounter();
+static_assert(_systemCheckMax() > 0, "");
 
-        if (++value > SYSTEM_CHECK_MAX) {
-            _systemStable = false;
-            value = SYSTEM_CHECK_MAX;
-            DEBUG_MSG_P(PSTR("[MAIN] System UNSTABLE\n"));
-        }
-    }
+Ticker _system_stable_timer;
+bool _system_stable { true };
 
-    systemStabilityCounter(value);
+void _systemStabilityInit() {
+    auto count = rtcmemStatus() ? systemStabilityCounter() : 1u;
+
+    _system_stable = (count < _systemCheckMax());
+    DEBUG_MSG_P(PSTR("[MAIN] System %s\n"), _system_stable ? "OK" : "UNSTABLE");
+
+    _system_stable_timer.once_ms_scheduled(_systemCheckTime(), []() {
+        DEBUG_MSG_P(PSTR("[MAIN] System stability counter %hhu / %hhu\n"),
+                _systemCheckMin(), _systemCheckMax());
+        systemStabilityCounter(_systemCheckMin());
+    });
+
+    auto next = count + 1u;
+    count = next > _systemCheckMax()
+        ? count
+        : next;
+
+    systemStabilityCounter(count);
 }
 
 bool systemCheck() {
-    return _systemStable;
-}
-
-void _systemCheckLoop() {
-    static bool checked = false;
-    if (!checked && (millis() > SYSTEM_CHECK_TIME)) {
-        // Flag system as stable
-        systemCheck(true);
-        checked = true;
-    }
+    return _system_stable;
 }
 
 #endif
@@ -378,6 +379,25 @@ struct CallbackRunner {
 
 std::vector<CallbackRunner> runners;
 
+namespace internal {
+
+bool scheduled { false };
+
+} // namespace internal
+
+void schedule() {
+    internal::scheduled = true;
+}
+
+bool scheduled() {
+    if (internal::scheduled) {
+        internal::scheduled = false;
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace heartbeat
 
 void _systemHeartbeat();
@@ -409,15 +429,7 @@ void systemHeartbeat(heartbeat::Callback callback, heartbeat::Mode mode, heartbe
     });
 
     heartbeat::timer.detach();
-    static bool scheduled { false };
-
-    if (!scheduled) {
-        scheduled = true;
-        schedule_function([]() {
-            scheduled = false;
-            _systemHeartbeat();
-        });
-    }
+    heartbeat::schedule();
 }
 
 void systemHeartbeat(heartbeat::Callback callback, heartbeat::Mode mode) {
@@ -480,7 +492,7 @@ void _systemHeartbeat() {
         next = BeatMin;
     }
 
-    timer.once_ms_scheduled(next.count(), _systemHeartbeat);
+    timer.once_ms(next.count(), heartbeat::schedule);
 }
 
 void systemScheduleHeartbeat() {
@@ -488,7 +500,7 @@ void systemScheduleHeartbeat() {
     for (auto& runner : heartbeat::runners) {
         runner.last = ts - runner.interval - heartbeat::Milliseconds(1ul);
     }
-    schedule_function(_systemHeartbeat);
+    heartbeat::schedule();
 }
 
 void _systemUpdateLoadAverage() {
@@ -536,9 +548,9 @@ void systemLoop() {
         return;
     }
 
-#if SYSTEM_CHECK_ENABLED
-    _systemCheckLoop();
-#endif
+    if (heartbeat::scheduled()) {
+        _systemHeartbeat();
+    }
 
     _systemUpdateLoadAverage();
 }
@@ -573,9 +585,8 @@ void systemSetup() {
         SPIFFS.begin();
     #endif
 
-    // Question system stability
     #if SYSTEM_CHECK_ENABLED
-        systemCheck(false);
+        _systemStabilityInit();
     #endif
 
     #if WEB_SUPPORT
@@ -588,6 +599,6 @@ void systemSetup() {
 
     espurnaRegisterLoop(systemLoop);
 
-    schedule_function(_systemHeartbeat);
+    heartbeat::schedule();
 
 }
